@@ -1,0 +1,132 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>小聊天室DEMO</title>
+	</head>
+	<body>
+		用户名:<input type="text" name="userName" id="userName"/><br>
+		用户密码:<input type="password" name="userPassword" id="userPassword"/><br>
+		<input type="button" onclick="CHAT.login()" name="loginButton" id="loginButton" value="登陆"/><br>
+		<div id="">发送消息：</div>
+		发送ID:<input type="text" name="toId" id="toId"/><br>
+		发送内容:<input type="text" name="messageContent" id="messageContent"/><br>
+        <input  type="button" onclick="CHAT.chat()" name="sendButton" id="sendButton" value="发送消息" />
+		<hr>
+		<div id="">接收消息列表：</div><br>
+		<div id="receiveNsg" style="background-color: gainsboro;"></div>
+		
+		
+		<script type="text/javascript">
+			var user = {
+				name:null,
+				id:null
+			}
+			var COMMAND_CODE = {
+					//登陆请求
+					LOGIN_REQUEST:1,
+					// 登陆消息响应
+					LOGIN_RESPONSE:2,
+					// 普通消息请求
+					MESSAGE_REQUEST:3,
+					// 普通消息响应
+					MESSAGE_RESPONSE:4,
+					// 系统消息响应
+					SYSTEM_RESPONSE:-1
+				},
+			_this = this;
+			window.CHAT = {
+				socket: null,
+				//初始化
+				init: function(){
+					//首先判断浏览器是否支持WebSocket
+					if (window.WebSocket){
+						that = this;
+						CHAT.socket = new WebSocket("ws://localhost:8080/ws");
+						CHAT.socket.onopen = function(){
+							console.log("客户端与服务端建立连接成功");
+						},
+						CHAT.socket.onmessage = function(e){
+							var receiveNsg = window.document.getElementById("receiveNsg");
+							var html = receiveNsg.innerHTML;
+							console.log("接收到消息："+e.data);
+							var response = JSON.parse(e.data);
+							// 说明是登陆的返回消息
+							if(response.command==_this.COMMAND_CODE.LOGIN_RESPONSE){
+								var result = JSON.parse(response.data);
+								console.log(result);
+								if(result.success==true){
+									_this.user.name = result.userName;
+									_this.user.id = result.userId;
+									receiveNsg.innerHTML = html + "<br>" + 
+									"用户登陆成功，您的ID为："+result.userId+",快去告诉你的朋友吧";
+									return;
+								}else{
+									receiveNsg.innerHTML = html + "<br>" + 
+									"用户登陆失败，原因是："+result.reason;
+								}
+							}else if(response.command==_this.COMMAND_CODE.MESSAGE_RESPONSE){
+								var result = JSON.parse(response.data);
+								receiveNsg.innerHTML = html + "<br>" + 
+									"["+result.fromUserName+"]"+"说："+result.message;
+								// 将ID设置到发送id框上去
+								var toId = window.document.getElementById("toId");
+								if(result.fromUserId!=_this.user.id){
+									toId.value = result.fromUserId;
+								}
+								return;
+							}else if(response.command==_this.COMMAND_CODE.SYSTEM_RESPONSE){
+								var result = JSON.parse(response.data);
+								receiveNsg.innerHTML = html + "<br>" + 
+									"[系统提示] "+result.message;
+								// 将ID设置到发送id框上去
+								var toId = window.document.getElementById("toId");
+								toId.value = result.fromUserId;
+								return;
+							}
+						},
+						CHAT.socket.onerror = function(){
+							console.log("发生错误");
+						},
+						CHAT.socket.onclose = function(){
+							console.log("客户端与服务端关闭连接成功");
+						}		
+					}else{
+						alert("8102年都过了，升级下浏览器吧");
+					}
+				},
+				chat: function(){
+					var msg = window.document.getElementById("messageContent");
+					var toId = window.document.getElementById("toId");
+					var packet = {
+						version:1,
+						command:_this.COMMAND_CODE.MESSAGE_REQUEST,
+						data:{
+							fromid:_this.user.id,
+							toid:toId.value,
+							message:msg.value
+						}
+					}
+					CHAT.socket.send(JSON.stringify(packet));
+				},
+				login:function(){
+					var userName = window.document.getElementById("userName");
+					var userPassword = window.document.getElementById("userPassword");
+					var packet = {
+						version:1,
+						command:_this.COMMAND_CODE.LOGIN_REQUEST,
+						data:{
+							userName:userName.value,
+							password:userPassword.value
+						}
+					}
+					CHAT.socket.send(JSON.stringify(packet));
+				}
+			}
+			CHAT.init();
+		</script>
+		
+	</body>
+
+</html>
